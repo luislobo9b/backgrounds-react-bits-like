@@ -42,7 +42,36 @@ function App() {
           />
         </div>
         <div style={{ width: '100%', height: '400px', position: 'relative', marginTop: '2rem' }}>
-          <DotNeonGrid />
+          <DotNeonGrid
+            dotSize={8}
+            gap={12}
+            proximity={120}
+            shockRadius={180}
+            shockStrength={4}
+            resistance={450}
+            returnDuration={1.25}
+
+            dotRadius={1.5}
+            dotSpacing={22}
+            cursorRadius={420}
+            cursorForce={0.14}
+            bulgeOnly={false}
+            bulgeStrength={75}
+            glowRadius={160}
+            sparkle={false}
+            waveAmplitude={2}
+
+            gradientFrom="rgba(168, 85, 247, 0.35)"
+            gradientTo="rgba(0, 255, 204, 0.18)"
+            glowColor="#120F17"
+
+            colors={['#d9ff00', '#b026ff', '#7a00ff', '#ffffff']}
+            backgroundColor="#040816"
+            lineColor="#7800ff"
+            lineOpacity={0.08}
+            pulseSpeed={0.0017}
+            glowIntensity={14}
+          />
         </div>
         <div>
           <h1>Get started</h1>
