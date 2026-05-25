@@ -1,37 +1,13 @@
-// import DotNeonGrid from './components/DotNeonGrid';
-// import DotField from './components/DotField';
-// import RotatingContours from './components/RotatingContours';
 import AnimatedSquareGrid from './components/AnimatedSquareGrid';
+import RotatingContours from './components/RotatingContours';
 
 import './App.css';
 
 function App() {
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      {/* <div style={{ position: 'relative', width: '100%', height: '33vh' }}>
-        <DotNeonGrid
-          dotSpacing={22}
-          colors={['#d9ff00', '#b026ff', '#7a00ff', '#ffffff']}
-          backgroundColor="#040816"
-          lineColor="#7800ff"
-          lineOpacity={0.08}
-          activeProbability={0.18}
-          pulseSpeed={0.0017}
-          glowIntensity={14}
-          randomActivationRate={0.96}
-        />
-      </div> */}
-      {/* <div style={{ position: 'relative', width: '100%', height: '33vh' }}>
-        <DotField
-          dotRadius={1.5}
-          dotSpacing={14}
-          bulgeStrength={67}
-          glowRadius={160}
-          sparkle={false}
-          waveAmplitude={0}
-        />
-      </div> */}
-      {/* <RotatingContours
+      {/*
+      <RotatingContours
         numCurves={100}
         radiusStep={24}
         lineWidth={1.5}
@@ -42,7 +18,8 @@ function App() {
         rotationSpeedMax={0.009}
         opacityMin={0.05}
         opacityMax={0.15}
-      /> */}
+      />
+      */}
       <AnimatedSquareGrid
         squareSize={1}
         gridGap={9}
