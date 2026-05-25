@@ -1,75 +1,30 @@
-# React + TypeScript + Vite
+# Backgrounds React Bits Like
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Coleção de componentes visuais animados para backgrounds, construídos com **React**, **TypeScript**, **Vite** e **Tailwind CSS**.
 
-Currently, two official plugins are available:
+## Componentes
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### DotNeonGrid
+Grade de pontos neon interativos com linhas de conexão. Apresenta animação de pulso, efeito de brilho (glow) e ativação aleatória dos pontos. Ideal para backgrounds futuristas e tecnológicos.
 
-## React Compiler
+### AnimatedSquareGrid
+Grade de quadrados com efeito de flicker (piscar). Cada quadrado altera sua opacidade de forma aleatória, criando um padrão visual dinâmico. Perfeito para efeitos de matriz digital ou painéis de controle.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+### RotatingContours
+Contornos concêntricos rotativos com arcos que giram em velocidades diferentes. Oferece suporte a diferentes origens de rotação e personalização de opacidade. Excelente para efeitos hipnóticos e elementos decorativos em movimento.
 
-Note: This will impact Vite dev & build performances.
+## Tecnologias
 
-## Expanding the ESLint configuration
+- [Vite](https://vitejs.dev/) - Build tool e dev server
+- [React](https://react.dev/) - Biblioteca UI
+- [TypeScript](https://www.typescriptlang.org/) - Tipagem estática
+- [Tailwind CSS](https://tailwindcss.com/) - Estilização utilitária
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Como rodar
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+O servidor de desenvolvimento será iniciado em `http://localhost:5173`.

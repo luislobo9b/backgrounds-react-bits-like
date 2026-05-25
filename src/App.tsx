@@ -1,5 +1,6 @@
 import AnimatedSquareGrid from './components/AnimatedSquareGrid';
 import RotatingContours from './components/RotatingContours';
+import DotNeonGrid from './components/DotNeonGrid';
 
 import './App.css';
 
@@ -28,6 +29,19 @@ function App() {
         maxOpacity={0.3}
         backgroundColor="#000000"
       />
+      {/*
+      <DotNeonGrid
+        dotSpacing={22}
+        colors={['#d9ff00', '#b026ff', '#7a00ff', '#ffffff']}
+        backgroundColor="#040816"
+        lineColor="#7800ff"
+        lineOpacity={0.08}
+        activeProbability={0.18}
+        pulseSpeed={0.0017}
+        glowIntensity={14}
+        randomActivationRate={0.96}
+      />
+      */}
     </div>
   );
 }
