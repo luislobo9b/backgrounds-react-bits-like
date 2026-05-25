@@ -2,6 +2,7 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
+import DotGrid from './components/DotGrid'
 import DotField from './components/DotField'
 import './App.css'
 
@@ -17,6 +18,19 @@ function App() {
           <img src={viteLogo} className="vite" alt="Vite logo" />
         </div>
         <div style={{ width: '100%', height: '400px', position: 'relative' }}>
+          <DotGrid
+            dotSize={8}
+            gap={12}
+            baseColor="#5227FF"
+            activeColor="#5227FF"
+            proximity={100}
+            shockRadius={150}
+            shockStrength={3}
+            resistance={500}
+            returnDuration={1.2}
+          />
+        </div>
+        <div style={{ width: '100%', height: '400px', position: 'relative', marginTop: '2rem' }}>
           <DotField
             dotRadius={1.5}
             dotSpacing={14}
