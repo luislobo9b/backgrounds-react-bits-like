@@ -4,6 +4,7 @@ import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import DotGrid from './components/DotGrid'
 import DotField from './components/DotField'
+import DotNeonGrid from './components/DotNeonGrid'
 import './App.css'
 
 function App() {
@@ -39,6 +40,9 @@ function App() {
             sparkle={false}
             waveAmplitude={0}
           />
+        </div>
+        <div style={{ width: '100%', height: '400px', position: 'relative', marginTop: '2rem' }}>
+          <DotNeonGrid />
         </div>
         <div>
           <h1>Get started</h1>
