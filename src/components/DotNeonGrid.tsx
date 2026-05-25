@@ -1,7 +1,16 @@
 'use client';
+import { useEffect, useMemo, useRef, memo } from 'react';
+import type { CSSProperties, HTMLAttributes } from 'react';
 
-import { memo, useEffect, useRef } from 'react';
-import type { CSSProperties } from 'react';
+const TWO_PI = Math.PI * 2;
+
+// Visual tuning constants (extracted from magic numbers).
+const PULSE_AMPLITUDE = 0.5;
+const ACTIVE_OPACITY_BASE = 0.3;
+const ACTIVE_OPACITY_PULSE = 0.9;
+const INACTIVE_OPACITY_FACTOR = 0.3;
+const RADIUS_PULSE = 0.6;
+const DEFAULT_MAX_DPR = 2;
 
 interface Dot {
   x: number;
@@ -13,119 +22,209 @@ interface Dot {
   pulse: number;
 }
 
-interface DotNeonGridProps {
-  // capabilities similar to DotGrid
+export interface DotNeonGridProps
+  extends Omit<HTMLAttributes<HTMLDivElement>, 'style' | 'className'> {
+  /** Distance, in pixels, between dot centers. */
+  dotSpacing?: number;
+  /** Base radius of each dot, in pixels. */
   dotSize?: number;
-  gap?: number;
-  baseColor?: string;
-  activeColor?: string;
-  proximity?: number;
-  speedTrigger?: number;
-  shockRadius?: number;
-  shockStrength?: number;
-  maxSpeed?: number;
-  resistance?: number;
-  returnDuration?: number;
-
-  // capabilities similar to DotField
-  dotRadius?: number; // alias of dotSize for naming consistency (used as radius)
-  dotSpacing?: number; // alias of gap/spacing
-  cursorRadius?: number;
-  cursorForce?: number;
-  bulgeOnly?: boolean;
-  bulgeStrength?: number;
-  glowRadius?: number;
-  sparkle?: boolean;
-  waveAmplitude?: number;
-  gradientFrom?: string;
-  gradientTo?: string;
-  glowColor?: string;
-
-  // neon-specific extras
-  spacing?: number; // legacy alias for dotSpacing
-  colors?: string[]; // palette
+  /** Random size jitter added on top of `dotSize`, in pixels. */
+  dotSizeVariance?: number;
+  /** Palette used to colorize dots. */
+  colors?: string[];
+  /** Canvas background fill. */
   backgroundColor?: string;
+  /** Color of the connecting grid lines. */
   lineColor?: string;
+  /** Opacity of the connecting grid lines (0-1). */
   lineOpacity?: number;
+  /** Probability (0-1) that a dot starts in the "active" (glowing) state. */
   activeProbability?: number;
+  /** Speed of the per-dot pulse animation. */
   pulseSpeed?: number;
+  /** Shadow blur radius applied to active dots. */
   glowIntensity?: number;
+  /**
+   * Threshold that gates the random activation tick.
+   * A new batch is triggered when `random() > randomActivationRate`,
+   * so HIGHER values mean LESS frequent activations.
+   */
   randomActivationRate?: number;
-
+  /** How many dots are re-randomized per activation tick. */
+  activationBatchSize?: number;
+  /** Cap for `window.devicePixelRatio` when sizing the canvas. */
+  maxDpr?: number;
+  /** Custom random source (defaults to `Math.random`). Useful for tests. */
+  random?: () => number;
   className?: string;
   style?: CSSProperties;
 }
 
-type PropsState = {
-  // DotGrid-like
-  dotSize: number;
-  gap: number;
-  baseColor: string;
-  activeColor: string;
-  proximity: number;
-  speedTrigger: number;
-  shockRadius: number;
-  shockStrength: number;
-  maxSpeed: number;
-  resistance: number;
-  returnDuration: number;
+type ResolvedProps = Required<
+  Omit<DotNeonGridProps, 'className' | 'style' | keyof HTMLAttributes<HTMLDivElement>>
+>;
 
-  // DotField-like
-  dotRadius: number;
-  dotSpacing: number;
-  cursorRadius: number;
-  cursorForce: number;
-  bulgeOnly: boolean;
-  bulgeStrength: number;
-  glowRadius: number;
-  sparkle: boolean;
-  waveAmplitude: number;
-  gradientFrom: string;
-  gradientTo: string;
-  glowColor: string;
+// ---------------------------------------------------------------------------
+// Pure helpers (kept module-level to avoid recreating closures on every mount).
+// ---------------------------------------------------------------------------
 
-  // Neon extras
-  spacing: number;
-  colors: string[];
-  backgroundColor: string;
-  lineColor: string;
-  lineOpacity: number;
-  activeProbability: number;
-  pulseSpeed: number;
-  glowIntensity: number;
-  randomActivationRate: number;
-};
+function buildDots(
+  w: number,
+  h: number,
+  p: ResolvedProps,
+): Dot[] {
+  const spacing = p.dotSpacing;
+  const cols = Math.max(4, Math.floor(w / spacing));
+  const rows = Math.max(4, Math.floor(h / spacing));
+
+  const totalW = (cols - 1) * spacing;
+  const totalH = (rows - 1) * spacing;
+  const startX = w / 2 - totalW / 2;
+  const startY = h / 2 - totalH / 2;
+
+  const dots: Dot[] = new Array(rows * cols);
+  let idx = 0;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      dots[idx++] = {
+        x: startX + x * spacing,
+        y: startY + y * spacing,
+        active: p.random() < p.activeProbability,
+        opacity: p.random() * 0.5 + 0.1,
+        color: p.colors[Math.floor(p.random() * p.colors.length)],
+        size: p.dotSize + p.random() * p.dotSizeVariance,
+        pulse: p.random() * TWO_PI,
+      };
+    }
+  }
+  return dots;
+}
+
+function gridDimensions(w: number, h: number, spacing: number) {
+  const cols = Math.max(4, Math.floor(w / spacing));
+  const rows = Math.max(4, Math.floor(h / spacing));
+  return { cols, rows };
+}
+
+function drawGridLines(
+  ctx: CanvasRenderingContext2D,
+  dots: Dot[],
+  cols: number,
+  p: ResolvedProps,
+) {
+  ctx.strokeStyle = p.lineColor;
+  ctx.globalAlpha = p.lineOpacity;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  const len = dots.length;
+  for (let i = 0; i < len; i++) {
+    const dot = dots[i];
+    if (i % cols !== cols - 1) {
+      const next = dots[i + 1];
+      ctx.moveTo(dot.x, dot.y);
+      ctx.lineTo(next.x, next.y);
+    }
+    if (i + cols < len) {
+      const below = dots[i + cols];
+      ctx.moveTo(dot.x, dot.y);
+      ctx.lineTo(below.x, below.y);
+    }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * Draw all dots in two passes:
+ *  1) inactive dots in a single batch (no shadow);
+ *  2) active dots grouped by color, applying `shadowBlur` once per color.
+ *
+ * This keeps `shadowBlur` configuration out of the per-dot hot loop.
+ */
+function drawDots(
+  ctx: CanvasRenderingContext2D,
+  dots: Dot[],
+  timestamp: number,
+  p: ResolvedProps,
+  circlePath: Path2D,
+) {
+  const len = dots.length;
+
+  // Group active dots by color so shadowBlur is set once per color.
+  const activeByColor = new Map<string, Dot[]>();
+
+  ctx.shadowBlur = 0;
+
+  // Pass 1: inactive dots.
+  for (let i = 0; i < len; i++) {
+    const dot = dots[i];
+    if (dot.active) {
+      let bucket = activeByColor.get(dot.color);
+      if (!bucket) {
+        bucket = [];
+        activeByColor.set(dot.color, bucket);
+      }
+      bucket.push(dot);
+      continue;
+    }
+
+    const pulse = Math.sin(timestamp * p.pulseSpeed + dot.pulse) * PULSE_AMPLITUDE + PULSE_AMPLITUDE;
+    const radius = dot.size + pulse * RADIUS_PULSE;
+
+    ctx.globalAlpha = dot.opacity * INACTIVE_OPACITY_FACTOR;
+    ctx.fillStyle = dot.color;
+    ctx.save();
+    ctx.translate(dot.x, dot.y);
+    ctx.scale(radius / Math.max(p.dotSize, 0.0001), radius / Math.max(p.dotSize, 0.0001));
+    ctx.fill(circlePath);
+    ctx.restore();
+  }
+
+  // Pass 2: active dots grouped by color.
+  for (const [color, bucket] of activeByColor) {
+    ctx.fillStyle = color;
+    ctx.shadowBlur = p.glowIntensity;
+    ctx.shadowColor = color;
+
+    for (let i = 0; i < bucket.length; i++) {
+      const dot = bucket[i];
+      const pulse = Math.sin(timestamp * p.pulseSpeed + dot.pulse) * PULSE_AMPLITUDE + PULSE_AMPLITUDE;
+      const radius = dot.size + pulse * RADIUS_PULSE;
+      const opacity = ACTIVE_OPACITY_BASE + pulse * ACTIVE_OPACITY_PULSE;
+
+      ctx.globalAlpha = opacity;
+      ctx.save();
+      ctx.translate(dot.x, dot.y);
+      ctx.scale(radius / Math.max(p.dotSize, 0.0001), radius / Math.max(p.dotSize, 0.0001));
+      ctx.fill(circlePath);
+      ctx.restore();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+}
+
+function triggerRandomActivation(dots: Dot[], p: ResolvedProps) {
+  if (p.random() <= p.randomActivationRate) return;
+  const len = dots.length;
+  const batch = Math.max(1, p.activationBatchSize);
+  for (let i = 0; i < batch; i++) {
+    const d = dots[Math.floor(p.random() * len)];
+    d.active = p.random() > 0.5;
+    d.color = p.colors[Math.floor(p.random() * p.colors.length)];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 const DotNeonGrid = memo(({
-  // DotGrid-like defaults
-  dotSize = 8,
-  gap = 12,
-  baseColor = '#5227FF',
-  activeColor = '#5227FF',
-  proximity = 100,
-  speedTrigger = 100,
-  shockRadius = 150,
-  shockStrength = 3,
-  maxSpeed = 5000,
-  resistance = 500,
-  returnDuration = 1.2,
-
-  // DotField-like defaults
-  dotRadius,
-  dotSpacing,
-  cursorRadius = 500,
-  cursorForce = 0.1,
-  bulgeOnly = true,
-  bulgeStrength = 67,
-  glowRadius = 160,
-  sparkle = false,
-  waveAmplitude = 0,
-  gradientFrom = 'rgba(168, 85, 247, 0.35)',
-  gradientTo = 'rgba(180, 151, 207, 0.25)',
-  glowColor = '#120F17',
-
-  // Neon extras defaults
-  spacing = 22,
+  dotSpacing = 22,
+  dotSize = 1.3,
+  dotSizeVariance = 0.7,
   colors = ['#d9ff00', '#b026ff', '#7a00ff', '#ffffff'],
   backgroundColor = '#040816',
   lineColor = '#7800ff',
@@ -134,46 +233,40 @@ const DotNeonGrid = memo(({
   pulseSpeed = 0.0015,
   glowIntensity = 12,
   randomActivationRate = 0.96,
-
+  activationBatchSize = 8,
+  maxDpr = DEFAULT_MAX_DPR,
+  random = Math.random,
   className = '',
   style,
+  ...rest
 }: DotNeonGridProps) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dotsRef = useRef<Dot[]>([]);
   const sizeRef = useRef({ w: 0, h: 0 });
   const gridRef = useRef({ cols: 0, rows: 0 });
   const rafRef = useRef<number | null>(null);
+  const isVisibleRef = useRef(true);
+  const reducedMotionRef = useRef(false);
+  const rebuildRef = useRef<(() => void) | null>(null);
 
-  const propsRef = useRef<PropsState>({
-    // DotGrid-like
+  // Memoized circle Path2D (reused for every dot via translate+scale).
+  const circlePath = useMemo(() => {
+    if (typeof window === 'undefined' || !window.Path2D) return null;
+    const path = new Path2D();
+    // Unit circle of radius `dotSize`; we scale per-dot in drawDots.
+    path.arc(0, 0, dotSize, 0, TWO_PI);
+    return path;
+  }, [dotSize]);
+
+  // Stable colors signature so a new array reference doesn't churn rebuilds.
+  const colorsKey = useMemo(() => colors.join('|'), [colors]);
+
+  // Single source of truth for resolved props read inside RAF.
+  const propsRef = useRef<ResolvedProps>({
+    dotSpacing,
     dotSize,
-    gap,
-    baseColor,
-    activeColor,
-    proximity,
-    speedTrigger,
-    shockRadius,
-    shockStrength,
-    maxSpeed,
-    resistance,
-    returnDuration,
-
-    // DotField-like
-    dotRadius: dotRadius ?? dotSize,
-    dotSpacing: dotSpacing ?? gap,
-    cursorRadius,
-    cursorForce,
-    bulgeOnly,
-    bulgeStrength,
-    glowRadius,
-    sparkle,
-    waveAmplitude,
-    gradientFrom,
-    gradientTo,
-    glowColor,
-
-    // Neon extras
-    spacing,
+    dotSizeVariance,
     colors,
     backgroundColor,
     lineColor,
@@ -182,38 +275,14 @@ const DotNeonGrid = memo(({
     pulseSpeed,
     glowIntensity,
     randomActivationRate,
+    activationBatchSize,
+    maxDpr,
+    random,
   });
-
   propsRef.current = {
-    // DotGrid-like
+    dotSpacing,
     dotSize,
-    gap,
-    baseColor,
-    activeColor,
-    proximity,
-    speedTrigger,
-    shockRadius,
-    shockStrength,
-    maxSpeed,
-    resistance,
-    returnDuration,
-
-    // DotField-like
-    dotRadius: dotRadius ?? dotSize,
-    dotSpacing: dotSpacing ?? gap,
-    cursorRadius,
-    cursorForce,
-    bulgeOnly,
-    bulgeStrength,
-    glowRadius,
-    sparkle,
-    waveAmplitude,
-    gradientFrom,
-    gradientTo,
-    glowColor,
-
-    // Neon extras
-    spacing,
+    dotSizeVariance,
     colors,
     backgroundColor,
     lineColor,
@@ -222,74 +291,68 @@ const DotNeonGrid = memo(({
     pulseSpeed,
     glowIntensity,
     randomActivationRate,
-  };
-
-  const buildGrid = () => {
-    const p = propsRef.current;
-    const { w, h } = sizeRef.current;
-    if (!w || !h) return;
-
-    const cols = Math.max(2, Math.floor(w / p.spacing));
-    const rows = Math.max(2, Math.floor(h / p.spacing));
-    gridRef.current = { cols, rows };
-
-    const totalW = (cols - 1) * p.spacing;
-    const totalH = (rows - 1) * p.spacing;
-    const startX = w / 2 - totalW / 2;
-    const startY = h / 2 - totalH / 2;
-
-    const dots: Dot[] = [];
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        dots.push({
-          x: startX + x * p.spacing,
-          y: startY + y * p.spacing,
-          active: Math.random() > 1 - p.activeProbability,
-          opacity: Math.random() * 0.5 + 0.1,
-          color: p.colors[Math.floor(Math.random() * p.colors.length)],
-          size: Math.random() * 1.5 + 0.5,
-          pulse: Math.random() * Math.PI * 2,
-        });
-      }
-    }
-
-    dotsRef.current = dots;
+    activationBatchSize,
+    maxDpr,
+    random,
   };
 
   useEffect(() => {
+    const wrapper = wrapperRef.current;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!wrapper || !canvas || !circlePath) return;
 
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Respect prefers-reduced-motion.
+    const motionMedia = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const updateMotion = () => {
+      reducedMotionRef.current = !!motionMedia?.matches;
+    };
+    updateMotion();
+    motionMedia?.addEventListener?.('change', updateMotion);
 
-    let resizeTimer: ReturnType<typeof setTimeout>;
     const doResize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
+      const rect = wrapper.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
-
-      sizeRef.current = { w, h };
+      const dpr = Math.min(window.devicePixelRatio || 1, propsRef.current.maxDpr);
 
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
-
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      buildGrid();
+
+      sizeRef.current = { w, h };
+      const { cols, rows } = gridDimensions(w, h, propsRef.current.dotSpacing);
+      gridRef.current = { cols, rows };
+      dotsRef.current = buildDots(w, h, propsRef.current);
     };
 
-    const resize = () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(doResize, 60);
-    };
+    // ResizeObserver on the wrapper (preferred over window resize).
+    const ro = new ResizeObserver(doResize);
+    ro.observe(wrapper);
 
-    const tick = (timestamp: number) => {
+    // Pause animation when offscreen; cancel RAF instead of polling visibility.
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const wasVisible = isVisibleRef.current;
+        isVisibleRef.current = entry.isIntersecting;
+        if (!wasVisible && entry.isIntersecting && rafRef.current == null) {
+          rafRef.current = requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.15 },
+    );
+    io.observe(wrapper);
+
+    function tick(timestamp: number) {
+      if (!isVisibleRef.current) {
+        rafRef.current = null;
+        return;
+      }
+
       const { w, h } = sizeRef.current;
       if (!w || !h) {
         rafRef.current = requestAnimationFrame(tick);
@@ -298,112 +361,64 @@ const DotNeonGrid = memo(({
 
       const p = propsRef.current;
       const dots = dotsRef.current;
-
-      ctx.clearRect(0, 0, w, h);
-
-      // Background: use gradientFrom/gradientTo if provided, otherwise fallback to backgroundColor.
-      // (App currently passes "red" strings; if it's not a valid CSS color/gradient, canvas will ignore.)
-      const grad = ctx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, p.gradientFrom);
-      grad.addColorStop(1, p.gradientTo);
-      ctx.fillStyle = grad || p.backgroundColor;
-      ctx.fillRect(0, 0, w, h);
-
-
-      ctx.strokeStyle = p.lineColor;
-      ctx.globalAlpha = p.lineOpacity;
-      ctx.lineWidth = 1;
-
       const { cols } = gridRef.current;
-      for (let i = 0; i < dots.length; i++) {
-        const dot = dots[i];
 
-        // Horizontal connections
-        if (i % cols !== cols - 1) {
-          const next = dots[i + 1];
-          ctx.beginPath();
-          ctx.moveTo(dot.x, dot.y);
-          ctx.lineTo(next.x, next.y);
-          ctx.stroke();
-        }
+      ctx!.clearRect(0, 0, w, h);
+      ctx!.fillStyle = p.backgroundColor;
+      ctx!.fillRect(0, 0, w, h);
 
-        // Vertical connections
-        if (i + cols < dots.length) {
-          const below = dots[i + cols];
-          ctx.beginPath();
-          ctx.moveTo(dot.x, dot.y);
-          ctx.lineTo(below.x, below.y);
-          ctx.stroke();
-        }
-      }
+      drawGridLines(ctx!, dots, cols, p);
+      drawDots(ctx!, dots, timestamp, p, circlePath!);
 
-      ctx.globalAlpha = 1;
-
-      // Dots
-      for (const dot of dots) {
-        const pulse = Math.sin(timestamp * p.pulseSpeed + dot.pulse) * 0.5 + 0.5;
-        const opacity = dot.active ? 0.3 + pulse * 0.9 : dot.opacity * 0.3;
-        const radius = dot.size + pulse * 0.6;
-
-        ctx.beginPath();
-        ctx.arc(dot.x, dot.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = dot.color;
-        ctx.globalAlpha = opacity;
-        ctx.shadowBlur = dot.active ? p.glowIntensity : 0;
-        // glowColor prop should control the glow hue (App passes "red").
-        ctx.shadowColor = p.glowColor || dot.color;
-
-        ctx.fill();
-
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-      }
-
-      // Random activation
-      if (Math.random() > p.randomActivationRate) {
-        for (let i = 0; i < 8; i++) {
-          const d = dots[Math.floor(Math.random() * dots.length)];
-          d.active = Math.random() > 0.5;
-          d.color = p.colors[Math.floor(Math.random() * p.colors.length)];
-        }
+      if (!reducedMotionRef.current) {
+        triggerRandomActivation(dots, p);
       }
 
       rafRef.current = requestAnimationFrame(tick);
-    };
+    }
 
-    resize();
+    doResize();
     rafRef.current = requestAnimationFrame(tick);
 
-    const parent = canvas.parentElement;
-    let ro: ResizeObserver | null = null;
-
-    if (typeof ResizeObserver !== 'undefined' && parent) {
-      ro = new ResizeObserver(() => resize());
-      ro.observe(parent);
-    } else {
-      window.addEventListener('resize', resize);
-    }
+    rebuildRef.current = () => {
+      const { w, h } = sizeRef.current;
+      if (w > 0 && h > 0) {
+        const { cols, rows } = gridDimensions(w, h, propsRef.current.dotSpacing);
+        gridRef.current = { cols, rows };
+        dotsRef.current = buildDots(w, h, propsRef.current);
+      }
+    };
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      clearTimeout(resizeTimer);
-      if (ro) ro.disconnect();
-      else window.removeEventListener('resize', resize);
+      rafRef.current = null;
+      ro.disconnect();
+      io.disconnect();
+      motionMedia?.removeEventListener?.('change', updateMotion);
+      rebuildRef.current = null;
     };
-  }, []);
-
-  // Rebuild ao trocar spacing/cores
-  useEffect(() => {
-    buildGrid();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spacing, activeProbability, colors]);
+  }, [circlePath]);
+
+  // Rebuild the grid when geometry- or palette-affecting props change.
+  useEffect(() => {
+    rebuildRef.current?.();
+  }, [dotSpacing, activeProbability, dotSize, dotSizeVariance, colorsKey]);
 
   return (
     <div
+      ref={wrapperRef}
       className={`w-full h-full relative overflow-hidden ${className}`}
       style={style}
+      role="presentation"
+      aria-hidden="true"
+      {...rest}
     >
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ display: 'block' }}
+      />
     </div>
   );
 });
@@ -411,4 +426,3 @@ const DotNeonGrid = memo(({
 DotNeonGrid.displayName = 'DotNeonGrid';
 
 export default DotNeonGrid;
-
