@@ -1,5 +1,7 @@
 # Backgrounds React Bits Like
 
+![Preview dos componentes](https://github.com/luislobo9b/backgrounds-react-bits-like/blob/main/preview.gif?raw=true)
+
 Coleção de componentes visuais animados para backgrounds, construídos com **React**, **TypeScript**, **Vite** e **Tailwind CSS**.
 
 ## Componentes
